@@ -102,7 +102,7 @@ end
 
 function M.goto_implementation()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/implementation" })
+  local clients = vim.lsp.get_clients({ bufnr = bufnr, name = "roslyn" })
   if #clients == 0 then
     grep_implementations(vim.fn.expand("<cword>"))
     return
