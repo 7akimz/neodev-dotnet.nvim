@@ -1,0 +1,179 @@
+*neodev-dotnet.txt*  .NET Core development tools for Neovim
+
+==============================================================================
+CONTENTS                                              *neodev-dotnet-contents*
+
+  1. Introduction .................. |neodev-dotnet-introduction|
+  2. Requirements .................. |neodev-dotnet-requirements|
+  3. Installation .................. |neodev-dotnet-installation|
+  4. Configuration ................. |neodev-dotnet-configuration|
+  5. Commands ...................... |neodev-dotnet-commands|
+  6. Keymaps ....................... |neodev-dotnet-keymaps|
+  7. Implementation Fallback ....... |neodev-dotnet-navigation|
+  8. Debugging ..................... |neodev-dotnet-debugging|
+  9. Health Check .................. |neodev-dotnet-health|
+
+==============================================================================
+1. INTRODUCTION                                  *neodev-dotnet-introduction*
+
+neodev-dotnet.nvim provides .NET Core development tools for Neovim:
+
+- Project discovery (*.csproj, *.sln)
+- Build, run, test, watch, clean, restore via terminal
+- Code generation (class, interface)
+- Implementation fallback: `gi` tries LSP first, then grep
+- DAP debugging with netcoredbg
+- Telescope pickers with quickfix fallback
+
+Complements roslyn.nvim — does not manage the Roslyn LSP server.
+
+==============================================================================
+2. REQUIREMENTS                                  *neodev-dotnet-requirements*
+
+Required:
+- Neovim >= 0.11
+- .NET SDK
+
+Optional:
+- roslyn.nvim (C# LSP via Roslyn)
+- ripgrep (implementation fallback search)
+- nvim-dap + nvim-dap-ui + nvim-dap-virtual-text (debugging)
+- telescope.nvim (enhanced pickers)
+- netcoredbg (debug adapter)
+
+==============================================================================
+3. INSTALLATION                                  *neodev-dotnet-installation*
+
+Using lazy.nvim: >lua
+  {
+    "7akimz/neodev-dotnet.nvim",
+    ft = { "cs" },
+    dependencies = {
+      "mfussenegger/nvim-dap",           -- optional
+      "rcarriga/nvim-dap-ui",            -- optional
+      "theHamsta/nvim-dap-virtual-text", -- optional
+      "nvim-telescope/telescope.nvim",   -- optional
+    },
+    opts = {},
+  }
+<
+
+==============================================================================
+4. CONFIGURATION                                *neodev-dotnet-configuration*
+
+Call `setup()` with your overrides: >lua
+  require("neodev-dotnet").setup({
+    keymaps = {
+      enabled = true,
+      prefix = "<leader>dn",
+    },
+    terminal = {
+      direction = "horizontal",
+      size = 15,
+      start_insert = true,
+    },
+    debug = {
+      enabled = true,
+      netcoredbg_path = "~/.local/bin/netcoredbg",
+      auto_setup_dapui = true,
+      virtual_text = true,
+    },
+    navigation = {
+      implementation_fallback = true,
+      fallback_keymap = "gi",
+      exclude_dirs = { "bin", "obj", ".git", "node_modules", "TestResults" },
+    },
+    codegen = { enabled = true },
+  })
+<
+
+==============================================================================
+5. COMMANDS                                        *neodev-dotnet-commands*
+
+                                                             *:DotNet*
+:DotNet {subcommand}
+
+  build          Build the project
+  run            Run the project
+  test           Run tests
+  watch          Watch run (hot reload)
+  clean          Clean build artifacts
+  restore        Restore NuGet packages
+  new-class      Create a new class
+  new-interface  Create a new interface
+  find-files     Find project files (*.cs, *.csproj, *.sln)
+  open-project   Open the .sln or .csproj file
+  list-projects  Pick a project and run it
+  info           Show debug info (project, DLL, debugger)
+
+==============================================================================
+6. KEYMAPS                                          *neodev-dotnet-keymaps*
+
+All keymaps use the configured prefix (default: `<leader>dn`).
+Set in C# buffers only.
+
+  {prefix}b    Build
+  {prefix}r    Run
+  {prefix}t    Test
+  {prefix}w    Watch run
+  {prefix}c    Clean
+  {prefix}p    Restore packages
+  {prefix}f    Find project files
+  {prefix}o    Open project file
+  {prefix}l    List and run projects
+  {prefix}n    New class
+  {prefix}i    New interface
+
+Debug keymaps (global when debug enabled):
+
+  <F5>           Continue / start debugging
+  <S-F5>         Stop debugging
+  <F10>          Step over
+  <F11>          Step into
+  <F12>          Step out
+  <leader>b      Toggle breakpoint
+  <leader>B      Conditional breakpoint
+  <leader>dr     Open debug REPL
+  <leader>dl     Run last debug session
+  <leader>dt     Toggle debug UI
+  <leader>di     Show debug info
+  <leader>dB     List breakpoints (Telescope)
+
+==============================================================================
+7. IMPLEMENTATION FALLBACK                        *neodev-dotnet-navigation*
+
+When `gi` is pressed on a Roslyn-attached buffer:
+
+1. Sends `textDocument/implementation` to the LSP
+2. If results exist, navigates normally
+3. If empty, runs ripgrep across the solution looking for classes
+   that implement the interface under cursor
+4. Results shown in Telescope (or quickfix if Telescope unavailable)
+
+Only activates on buffers where `client.name == "roslyn"`.
+
+==============================================================================
+8. DEBUGGING                                      *neodev-dotnet-debugging*
+
+Requires nvim-dap and netcoredbg. Four configurations:
+
+- Launch .NET Core (Build & Run)
+- Launch .NET Core (No Build)
+- Attach to Process
+- Launch Web API
+
+Environment variables are read from launchSettings.json when present.
+
+==============================================================================
+9. HEALTH CHECK                                      *neodev-dotnet-health*
+
+Run `:checkhealth neodev-dotnet` to verify:
+- dotnet SDK
+- netcoredbg
+- ripgrep
+- telescope.nvim
+- nvim-dap / nvim-dap-ui
+- roslyn.nvim
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
