@@ -56,12 +56,15 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
-vim.api.nvim_create_autocmd("LspAttach", {
+vim.api.nvim_create_autocmd("User", {
   group = augroup,
-  callback = function(event)
-    local client = vim.lsp.get_client_by_id(event.data.client_id)
-    if client and client.name == "roslyn" then
-      require("neodev-dotnet.navigation").attach(event.buf)
+  pattern = "RoslynInitialized",
+  callback = function()
+    local navigation = require("neodev-dotnet.navigation")
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype == "cs" then
+        navigation.attach(buf)
+      end
     end
   end,
 })
