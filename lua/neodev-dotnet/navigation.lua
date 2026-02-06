@@ -39,7 +39,11 @@ local function show_in_telescope(items, title)
   }):find()
 end
 
-local function grep_implementations(interface_name)
+local function looks_like_interface(name)
+  return name:match("^I%u") ~= nil
+end
+
+local function grep_implementations(name)
   local cfg = config.get().navigation
   local root = project.find_project_root()
 
@@ -49,41 +53,45 @@ local function grep_implementations(interface_name)
     table.insert(exclude_args, "!" .. dir .. "/")
   end
 
-  local pattern = "class\\s+\\w+[^{]*:\\s*[^{]*\\b" .. interface_name .. "\\b"
-
-  local cmd = vim.list_extend(
-    { "rg", "--vimgrep", "--no-heading", "--type", "cs" },
-    exclude_args
-  )
-  table.insert(cmd, pattern)
-  table.insert(cmd, root)
-
-  local result = vim.fn.systemlist(cmd)
-  if vim.v.shell_error ~= 0 or #result == 0 then
-    vim.notify("No implementations found for " .. interface_name, vim.log.levels.INFO)
-    return
+  local patterns = {}
+  if looks_like_interface(name) then
+    table.insert(patterns, "class\\s+\\w+[^{]*:\\s*[^{]*\\b" .. name .. "\\b")
   end
+  table.insert(patterns, "(override|virtual|abstract)[^;{]*\\b" .. name .. "\\b")
 
-  local items = {}
-  for _, line in ipairs(result) do
-    local entry = parse_rg_line(line)
-    if entry then
-      table.insert(items, entry)
+  local all_items = {}
+
+  for _, pattern in ipairs(patterns) do
+    local cmd = vim.list_extend(
+      { "rg", "--vimgrep", "--no-heading", "--type", "cs" },
+      exclude_args
+    )
+    table.insert(cmd, pattern)
+    table.insert(cmd, root)
+
+    local result = vim.fn.systemlist(cmd)
+    if vim.v.shell_error == 0 then
+      for _, line in ipairs(result) do
+        local entry = parse_rg_line(line)
+        if entry then
+          table.insert(all_items, entry)
+        end
+      end
     end
   end
 
-  if #items == 0 then
-    vim.notify("No implementations found for " .. interface_name, vim.log.levels.INFO)
+  if #all_items == 0 then
+    vim.notify("No implementations found for " .. name, vim.log.levels.INFO)
     return
   end
 
-  if #items == 1 then
-    vim.cmd("edit " .. vim.fn.fnameescape(items[1].filename))
-    vim.api.nvim_win_set_cursor(0, { items[1].lnum, items[1].col - 1 })
+  if #all_items == 1 then
+    vim.cmd("edit " .. vim.fn.fnameescape(all_items[1].filename))
+    vim.api.nvim_win_set_cursor(0, { all_items[1].lnum, all_items[1].col - 1 })
     return
   end
 
-  show_in_telescope(items, "Implementations of " .. interface_name)
+  show_in_telescope(all_items, "Implementations of " .. name)
 end
 
 local function on_lsp_results(results)
