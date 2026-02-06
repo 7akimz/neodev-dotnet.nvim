@@ -20,15 +20,23 @@ function M.validate_path(path)
 end
 
 function M.find_project_root()
-  local current_file = vim.fn.expand("%:p:h")
-  local csproj = vim.fn.findfile("*.csproj", current_file .. ";")
-  if csproj ~= "" then
-    return vim.fn.fnamemodify(csproj, ":p:h")
+  local current_file = vim.api.nvim_buf_get_name(0)
+  local current_dir = current_file ~= "" and vim.fn.fnamemodify(current_file, ":h") or vim.fn.getcwd()
+
+  local csproj = vim.fs.find(function(name)
+    return name:match("%.csproj$")
+  end, { path = current_dir, upward = true, type = "file" })[1]
+  if csproj then
+    return vim.fn.fnamemodify(csproj, ":h")
   end
-  local sln = vim.fn.findfile("*.sln", current_file .. ";")
-  if sln ~= "" then
-    return vim.fn.fnamemodify(sln, ":p:h")
+
+  local sln = vim.fs.find(function(name)
+    return name:match("%.sln$")
+  end, { path = current_dir, upward = true, type = "file" })[1]
+  if sln then
+    return vim.fn.fnamemodify(sln, ":h")
   end
+
   return vim.fn.getcwd()
 end
 
@@ -37,10 +45,14 @@ function M.get_project_dir(csproj_path)
 end
 
 function M.find_csproj(prompt_if_missing)
-  local current_file = vim.fn.expand("%:p:h")
-  local csproj = vim.fn.findfile("*.csproj", current_file .. ";")
-  if csproj ~= "" then
-    return vim.fn.fnamemodify(csproj, ":p")
+  local current_file = vim.api.nvim_buf_get_name(0)
+  local current_dir = current_file ~= "" and vim.fn.fnamemodify(current_file, ":h") or vim.fn.getcwd()
+
+  local csproj = vim.fs.find(function(name)
+    return name:match("%.csproj$")
+  end, { path = current_dir, upward = true, type = "file" })[1]
+  if csproj then
+    return csproj
   end
 
   if not prompt_if_missing then
