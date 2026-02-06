@@ -4,13 +4,15 @@
 
 ## Features
 
-- **Project discovery** — finds `*.csproj` and `*.sln` files from the current buffer
-- **Build/Run/Test/Watch/Clean/Restore** — via terminal splits
-- **Code generation** — `dotnet new class`, `dotnet new interface`
-- **Implementation fallback** — `gi` tries LSP first, then ripgrep across the solution
+- **Project discovery** — automatically finds `*.csproj` and `*.sln` files from the current buffer
+- **Build/Run/Test/Watch/Clean/Restore** — via terminal splits with launch settings support
+- **Launch settings** — reads `Properties/launchSettings.json` for environment variables and application URLs
+- **Code generation** — scaffold new classes and interfaces
+- **Implementation fallback** — `gi` tries LSP first, falls back to ripgrep for interfaces and method overrides
 - **DAP debugging** — netcoredbg adapter with 4 launch configurations, DAP UI, virtual text
 - **Telescope pickers** — project files, project selector (quickfix fallback when Telescope absent)
 - **`:DotNet` command** — unified command with tab completion
+- **Health check** — `:checkhealth neodev-dotnet` to verify your setup
 
 Complements [roslyn.nvim](https://github.com/seblyng/roslyn.nvim) — does not manage the Roslyn LSP server.
 
@@ -34,7 +36,6 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 ```lua
 {
   "7akimz/neodev-dotnet.nvim",
-  ft = { "cs" },
   dependencies = {
     "mfussenegger/nvim-dap",           -- optional
     "rcarriga/nvim-dap-ui",            -- optional
@@ -71,7 +72,7 @@ require("neodev-dotnet").setup({
     virtual_text = true,
     keymaps = {
       continue = "<F5>", step_over = "<F10>", step_into = "<F11>",
-      step_out = "<F12>", terminate = "<S-F5>",
+      step_out = "<F12>", terminate = "<leader>dx",
       toggle_breakpoint = "<leader>b", conditional_breakpoint = "<leader>B",
       repl = "<leader>dr", run_last = "<leader>dl", toggle_ui = "<leader>dt",
       info = "<leader>di", list_breakpoints = "<leader>dB",
@@ -111,9 +112,9 @@ All keymaps use the configured prefix (default `<leader>dn`), set in C# buffers 
 | Key | Action |
 |-----|--------|
 | `{prefix}b` | Build |
-| `{prefix}r` | Run |
+| `{prefix}r` | Run (with launch settings env) |
 | `{prefix}t` | Test |
-| `{prefix}w` | Watch run |
+| `{prefix}w` | Watch run (with launch settings env) |
 | `{prefix}c` | Clean |
 | `{prefix}p` | Restore packages |
 | `{prefix}f` | Find project files |
@@ -127,7 +128,7 @@ All keymaps use the configured prefix (default `<leader>dn`), set in C# buffers 
 | Key | Action |
 |-----|--------|
 | `<F5>` | Continue / start debugging |
-| `<S-F5>` | Stop debugging |
+| `<leader>dx` | Stop debugging |
 | `<F10>` | Step over |
 | `<F11>` | Step into |
 | `<F12>` | Step out |
@@ -139,18 +140,48 @@ All keymaps use the configured prefix (default `<leader>dn`), set in C# buffers 
 | `<leader>di` | Show debug info |
 | `<leader>dB` | List breakpoints (Telescope) |
 
+## Launch Settings
+
+The plugin reads `Properties/launchSettings.json` from your project directory. It selects the profile with `"commandName": "Project"` (matching `dotnet run` behavior) and applies:
+
+- **`environmentVariables`** — passed to both terminal commands (`run`, `watch`) and DAP debug sessions
+- **`applicationUrl`** — passed as `ASPNETCORE_URLS` so the app binds to the configured address
+
 ## Implementation Fallback
 
-The core novel feature. When `gi` is pressed on a Roslyn-attached buffer:
+When `gi` is pressed on a Roslyn-attached buffer:
 
 1. Sends `textDocument/implementation` to the LSP
 2. If results exist, navigates normally (single jump or quickfix list)
-3. If empty, runs ripgrep across the solution for classes implementing the interface
+3. If empty, runs ripgrep across the solution:
+   - For interface names (e.g. `IUserService`): searches for classes inheriting the interface
+   - For method names: searches for `override`, `virtual`, and `abstract` declarations
 4. Results shown in Telescope (or quickfix if Telescope absent)
 
-Pattern: `class\s+\w+[^{]*:\s*[^{]*\b{InterfaceName}\b` across all `*.cs` files.
+Activates on the `User RoslynInitialized` event, so the LSP is fully ready before handling requests.
 
-## Health Check
+## Troubleshooting
+
+### Roslyn not working (no syntax highlighting, gd/gr fail)
+
+Check `~/.local/state/nvim/lsp.log` for errors. A common cause is the inotify instance limit being too low:
+
+```bash
+# Check current limit
+cat /proc/sys/fs/inotify/max_user_instances
+
+# Fix (immediate)
+sudo sysctl fs.inotify.max_user_instances=512
+
+# Fix (permanent)
+echo 'fs.inotify.max_user_instances=512' | sudo tee /etc/sysctl.d/90-inotify.conf
+```
+
+### netcoredbg not found
+
+Set the `NETCOREDBG_PATH` environment variable or install at `~/.local/bin/netcoredbg`. Run `<leader>di` to verify detection.
+
+### Verify your setup
 
 ```
 :checkhealth neodev-dotnet
