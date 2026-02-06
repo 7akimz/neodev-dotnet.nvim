@@ -9,19 +9,22 @@ CONTENTS                                              *neodev-dotnet-contents*
   4. Configuration ................. |neodev-dotnet-configuration|
   5. Commands ...................... |neodev-dotnet-commands|
   6. Keymaps ....................... |neodev-dotnet-keymaps|
-  7. Implementation Fallback ....... |neodev-dotnet-navigation|
-  8. Debugging ..................... |neodev-dotnet-debugging|
-  9. Health Check .................. |neodev-dotnet-health|
+  7. Launch Settings ............... |neodev-dotnet-launch-settings|
+  8. Implementation Fallback ....... |neodev-dotnet-navigation|
+  9. Debugging ..................... |neodev-dotnet-debugging|
+  10. Troubleshooting .............. |neodev-dotnet-troubleshooting|
+  11. Health Check ................. |neodev-dotnet-health|
 
 ==============================================================================
 1. INTRODUCTION                                  *neodev-dotnet-introduction*
 
 neodev-dotnet.nvim provides .NET Core development tools for Neovim:
 
-- Project discovery (*.csproj, *.sln)
+- Automatic project discovery (*.csproj, *.sln)
 - Build, run, test, watch, clean, restore via terminal
+- Launch settings support (environment variables, application URLs)
 - Code generation (class, interface)
-- Implementation fallback: `gi` tries LSP first, then grep
+- Implementation fallback: `gi` tries LSP first, then ripgrep
 - DAP debugging with netcoredbg
 - Telescope pickers with quickfix fallback
 
@@ -47,7 +50,6 @@ Optional:
 Using lazy.nvim: >lua
   {
     "7akimz/neodev-dotnet.nvim",
-    ft = { "cs" },
     dependencies = {
       "mfussenegger/nvim-dap",           -- optional
       "rcarriga/nvim-dap-ui",            -- optional
@@ -61,27 +63,49 @@ Using lazy.nvim: >lua
 ==============================================================================
 4. CONFIGURATION                                *neodev-dotnet-configuration*
 
-Call `setup()` with your overrides: >lua
+Call `setup()` with your overrides. All options with defaults: >lua
   require("neodev-dotnet").setup({
     keymaps = {
       enabled = true,
       prefix = "<leader>dn",
+      build = "b", run = "r", test = "t", watch = "w",
+      clean = "c", restore = "p", find_files = "f",
+      open_project = "o", list_projects = "l",
+      new_class = "n", new_interface = "i",
     },
     terminal = {
-      direction = "horizontal",
+      direction = "horizontal",  -- "horizontal" | "vertical"
       size = 15,
       start_insert = true,
     },
     debug = {
       enabled = true,
-      netcoredbg_path = "~/.local/bin/netcoredbg",
+      netcoredbg_path = vim.env.NETCOREDBG_PATH
+        or "~/.local/bin/netcoredbg",
       auto_setup_dapui = true,
       virtual_text = true,
+      keymaps = {
+        continue = "<F5>",
+        step_over = "<F10>",
+        step_into = "<F11>",
+        step_out = "<F12>",
+        terminate = "<leader>dx",
+        toggle_breakpoint = "<leader>b",
+        conditional_breakpoint = "<leader>B",
+        repl = "<leader>dr",
+        run_last = "<leader>dl",
+        toggle_ui = "<leader>dt",
+        info = "<leader>di",
+        list_breakpoints = "<leader>dB",
+      },
+      configurations = nil,  -- nil = defaults, or custom DAP configs
     },
     navigation = {
       implementation_fallback = true,
       fallback_keymap = "gi",
-      exclude_dirs = { "bin", "obj", ".git", "node_modules", "TestResults" },
+      exclude_dirs = {
+        "bin", "obj", ".git", "node_modules", "TestResults",
+      },
     },
     codegen = { enabled = true },
   })
@@ -94,9 +118,9 @@ Call `setup()` with your overrides: >lua
 :DotNet {subcommand}
 
   build          Build the project
-  run            Run the project
+  run            Run the project (with launch settings env)
   test           Run tests
-  watch          Watch run (hot reload)
+  watch          Watch run with hot reload (with launch settings env)
   clean          Clean build artifacts
   restore        Restore NuGet packages
   new-class      Create a new class
@@ -113,9 +137,9 @@ All keymaps use the configured prefix (default: `<leader>dn`).
 Set in C# buffers only.
 
   {prefix}b    Build
-  {prefix}r    Run
+  {prefix}r    Run (with launch settings env)
   {prefix}t    Test
-  {prefix}w    Watch run
+  {prefix}w    Watch run (with launch settings env)
   {prefix}c    Clean
   {prefix}p    Restore packages
   {prefix}f    Find project files
@@ -127,7 +151,7 @@ Set in C# buffers only.
 Debug keymaps (global when debug enabled):
 
   <F5>           Continue / start debugging
-  <S-F5>         Stop debugging
+  <leader>dx     Stop debugging
   <F10>          Step over
   <F11>          Step into
   <F12>          Step out
@@ -140,32 +164,96 @@ Debug keymaps (global when debug enabled):
   <leader>dB     List breakpoints (Telescope)
 
 ==============================================================================
-7. IMPLEMENTATION FALLBACK                        *neodev-dotnet-navigation*
+7. LAUNCH SETTINGS                          *neodev-dotnet-launch-settings*
+
+The plugin reads `Properties/launchSettings.json` from the project
+directory (located via the nearest `*.csproj`). It selects the profile
+with `"commandName": "Project"`, matching `dotnet run` behavior.
+
+The following fields are applied:
+
+  environmentVariables ~
+    Passed to both terminal commands (`run`, `watch`) and DAP debug
+    sessions. Environment variable values containing CREDENTIALS, PATH,
+    or FILE keys with relative paths are resolved against the project
+    directory.
+
+  applicationUrl ~
+    Passed as `ASPNETCORE_URLS` so the app binds to the configured
+    address (e.g. `http://localhost:5001`).
+
+If no launchSettings.json is found, defaults to: >lua
+  { ASPNETCORE_ENVIRONMENT = "Development" }
+<
+
+==============================================================================
+8. IMPLEMENTATION FALLBACK                        *neodev-dotnet-navigation*
 
 When `gi` is pressed on a Roslyn-attached buffer:
 
 1. Sends `textDocument/implementation` to the LSP
-2. If results exist, navigates normally
-3. If empty, runs ripgrep across the solution looking for classes
-   that implement the interface under cursor
+2. If results exist, navigates normally (single jump or quickfix list)
+3. If empty, runs ripgrep across the solution:
+   - For interface names (e.g. `IUserService`): searches for classes
+     inheriting the interface
+   - For method names: searches for `override`, `virtual`, and
+     `abstract` declarations
 4. Results shown in Telescope (or quickfix if Telescope unavailable)
 
-Only activates on buffers where `client.name == "roslyn"`.
+Activates on the `User RoslynInitialized` event, so the LSP is fully
+ready before handling requests. Without Roslyn, falls back to ripgrep
+directly.
 
 ==============================================================================
-8. DEBUGGING                                      *neodev-dotnet-debugging*
+9. DEBUGGING                                      *neodev-dotnet-debugging*
 
 Requires nvim-dap and netcoredbg. Four configurations:
 
-- Launch .NET Core (Build & Run)
-- Launch .NET Core (No Build)
-- Attach to Process
-- Launch Web API
+- Launch .NET Core (Build & Run) — builds first, then launches
+- Launch .NET Core (No Build) — launches existing build
+- Attach to Process — attach to a running .NET process
+- Launch Web API — builds and launches with `serverReadyAction`
 
-Environment variables are read from launchSettings.json when present.
+Environment variables and application URL are read from
+launchSettings.json when present. See |neodev-dotnet-launch-settings|.
+
+Set `NETCOREDBG_PATH` or install at `~/.local/bin/netcoredbg`.
+Run `<leader>di` to verify detection.
 
 ==============================================================================
-9. HEALTH CHECK                                      *neodev-dotnet-health*
+10. TROUBLESHOOTING                          *neodev-dotnet-troubleshooting*
+
+Roslyn not working (no syntax highlighting, gd/gr fail) ~
+
+Check `~/.local/state/nvim/lsp.log` for errors. A common cause on
+Linux is the inotify instance limit being too low: >bash
+  # Check current limit
+  cat /proc/sys/fs/inotify/max_user_instances
+
+  # Fix (immediate)
+  sudo sysctl fs.inotify.max_user_instances=512
+
+  # Fix (permanent)
+  echo 'fs.inotify.max_user_instances=512' \
+    | sudo tee /etc/sysctl.d/90-inotify.conf
+<
+
+netcoredbg not found ~
+
+Set the `NETCOREDBG_PATH` environment variable or install at
+`~/.local/bin/netcoredbg`. Run `<leader>di` to verify.
+
+Launch settings not applied ~
+
+Ensure `Properties/launchSettings.json` exists in the same directory
+as your `*.csproj`. The plugin selects the profile with
+`"commandName": "Project"`. Verify with: >vim
+  :lua print(vim.inspect(
+    require("neodev-dotnet.launch_settings").get_launch_env()))
+<
+
+==============================================================================
+11. HEALTH CHECK                                    *neodev-dotnet-health*
 
 Run `:checkhealth neodev-dotnet` to verify:
 - dotnet SDK
