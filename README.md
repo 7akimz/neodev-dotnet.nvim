@@ -72,7 +72,7 @@ require("neodev-dotnet").setup({
     virtual_text = true,
     keymaps = {
       continue = "<F5>", step_over = "<F10>", step_into = "<F11>",
-      step_out = "<F12>", terminate = "<leader>dx",
+      step_out = "<F12>", terminate = "<leader>dx", pause = "<leader>dp",
       toggle_breakpoint = "<leader>b", conditional_breakpoint = "<leader>B",
       repl = "<leader>dr", run_last = "<leader>dl", toggle_ui = "<leader>dt",
       info = "<leader>di", list_breakpoints = "<leader>dB",
@@ -129,6 +129,7 @@ All keymaps use the configured prefix (default `<leader>dn`), set in C# buffers 
 |-----|--------|
 | `<F5>` | Continue / start debugging |
 | `<leader>dx` | Stop debugging |
+| `<leader>dp` | Pause execution |
 | `<F10>` | Step over |
 | `<F11>` | Step into |
 | `<F12>` | Step out |

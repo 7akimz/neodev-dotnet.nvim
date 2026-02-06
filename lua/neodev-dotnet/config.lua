@@ -32,6 +32,7 @@ local defaults = {
       step_into = "<F11>",
       step_out = "<F12>",
       terminate = "<leader>dx",
+      pause = "<leader>dp",
       toggle_breakpoint = "<leader>b",
       conditional_breakpoint = "<leader>B",
       repl = "<leader>dr",

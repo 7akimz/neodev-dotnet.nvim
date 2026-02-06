@@ -97,6 +97,66 @@ local function setup_virtual_text()
   })
 end
 
+local function is_user_code(path)
+  if not path then return false end
+  if not path:match("%.cs$") then return false end
+  return not path:match("Program%.cs$")
+end
+
+local function setup_auto_focus(dap)
+  dap.listeners.after.event_stopped["neodev_dotnet_focus"] = function(session, body)
+    if not body then return end
+
+    vim.defer_fn(function()
+      local s = dap.session()
+      if not s then return end
+
+      local current = s.current_frame
+      if current and is_user_code(current.source and current.source.path) then
+        return
+      end
+
+      s:request("threads", nil, function(err, resp)
+        if err or not resp or not resp.threads then return end
+
+        local threads = resp.threads
+        local idx = 0
+
+        local function check_next()
+          idx = idx + 1
+          if idx > #threads then return end
+
+          if threads[idx].id == s.stopped_thread_id then
+            check_next()
+            return
+          end
+
+          s:request("stackTrace", { threadId = threads[idx].id, levels = 30 }, function(err2, st)
+            if err2 or not st then
+              check_next()
+              return
+            end
+
+            for _, frame in ipairs(st.stackFrames or {}) do
+              if is_user_code(frame.source and frame.source.path) then
+                vim.schedule(function()
+                  s.stopped_thread_id = threads[idx].id
+                  s:_frame_set(frame)
+                end)
+                return
+              end
+            end
+
+            check_next()
+          end)
+        end
+
+        check_next()
+      end)
+    end, 200)
+  end
+end
+
 local function setup_configurations(dap)
   dap.configurations.cs = {
     {
@@ -167,6 +227,8 @@ function M.setup()
     setup_virtual_text()
   end
 
+  setup_auto_focus(dap)
+
   pcall(function() require("telescope").load_extension("dap") end)
 
   setup_signs_and_highlights()
@@ -196,6 +258,7 @@ function M.set_keymaps()
   end, { desc = "Conditional Breakpoint" })
   vim.keymap.set("n", km.repl, dap.repl.open, { desc = "Debug REPL" })
   vim.keymap.set("n", km.run_last, dap.run_last, { desc = "Run Last" })
+  vim.keymap.set("n", km.pause, dap.pause, { desc = "Debug: Pause" })
   vim.keymap.set("n", km.info, M.show_info, { desc = "Debug: Info" })
 
   local dapui_ok, dapui = pcall(require, "dapui")

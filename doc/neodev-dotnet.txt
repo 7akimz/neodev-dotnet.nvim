@@ -90,6 +90,7 @@ Call `setup()` with your overrides. All options with defaults: >lua
         step_into = "<F11>",
         step_out = "<F12>",
         terminate = "<leader>dx",
+        pause = "<leader>dp",
         toggle_breakpoint = "<leader>b",
         conditional_breakpoint = "<leader>B",
         repl = "<leader>dr",
@@ -152,6 +153,7 @@ Debug keymaps (global when debug enabled):
 
   <F5>           Continue / start debugging
   <leader>dx     Stop debugging
+  <leader>dp     Pause execution
   <F10>          Step over
   <F11>          Step into
   <F12>          Step out
@@ -207,12 +209,11 @@ directly.
 ==============================================================================
 9. DEBUGGING                                      *neodev-dotnet-debugging*
 
-Requires nvim-dap and netcoredbg. Four configurations:
+Requires nvim-dap and netcoredbg. Three configurations:
 
-- Launch .NET Core (Build & Run) — builds first, then launches
-- Launch .NET Core (No Build) — launches existing build
+- Launch .NET Core — launches the project DLL
 - Attach to Process — attach to a running .NET process
-- Launch Web API — builds and launches with `serverReadyAction`
+- Launch Web API — launches with launch settings env
 
 Environment variables and application URL are read from
 launchSettings.json when present. See |neodev-dotnet-launch-settings|.
