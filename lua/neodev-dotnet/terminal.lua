@@ -1,5 +1,6 @@
 local config = require("neodev-dotnet.config")
 local project = require("neodev-dotnet.project")
+local launch_settings = require("neodev-dotnet.launch_settings")
 
 local M = {}
 
@@ -41,10 +42,23 @@ function M.run_dotnet_command(cmd, args)
   M.run_in_terminal(full_cmd)
 end
 
-local function run_with_csproj(dotnet_cmd)
+local function env_prefix()
+  local env = launch_settings.get_launch_env()
+  if not env or not next(env) then
+    return ""
+  end
+  local parts = {}
+  for k, v in pairs(env) do
+    table.insert(parts, k .. "=" .. project.shell_escape(v))
+  end
+  return table.concat(parts, " ") .. " "
+end
+
+local function run_with_csproj(dotnet_cmd, with_env)
   local csproj = project.find_csproj(true)
   if csproj then
-    M.run_in_terminal("dotnet " .. dotnet_cmd .. " " .. project.shell_escape(csproj))
+    local prefix = with_env and env_prefix() or ""
+    M.run_in_terminal(prefix .. "dotnet " .. dotnet_cmd .. " " .. project.shell_escape(csproj))
   end
 end
 
@@ -53,7 +67,7 @@ function M.build()
 end
 
 function M.run()
-  run_with_csproj("run --project")
+  run_with_csproj("run --project", true)
 end
 
 function M.test()
@@ -61,7 +75,7 @@ function M.test()
 end
 
 function M.watch()
-  run_with_csproj("watch run --project")
+  run_with_csproj("watch run --project", true)
 end
 
 function M.clean()
