@@ -101,23 +101,11 @@ local function setup_configurations(dap)
   dap.configurations.cs = {
     {
       type = "coreclr",
-      name = "Launch .NET Core (Build & Run)",
-      request = "launch",
-      preLaunchTask = function() return project.build_project() end,
-      program = project.find_dll,
-      cwd = get_cwd,
-      stopAtEntry = false,
-      console = "internalConsole",
-      env = launch_settings.get_launch_env,
-    },
-    {
-      type = "coreclr",
-      name = "Launch .NET Core (No Build)",
+      name = "Launch .NET Core",
       request = "launch",
       program = project.find_dll,
       cwd = get_cwd,
       stopAtEntry = false,
-      console = "internalConsole",
       env = launch_settings.get_launch_env,
     },
     {
@@ -130,16 +118,10 @@ local function setup_configurations(dap)
       type = "coreclr",
       name = "Launch Web API",
       request = "launch",
-      preLaunchTask = function() return project.build_project() end,
       program = project.find_dll,
       cwd = get_cwd,
       stopAtEntry = false,
-      console = "internalConsole",
       env = launch_settings.get_launch_env,
-      serverReadyAction = {
-        action = "openExternally",
-        pattern = "\\bNow listening on:\\s+(https?://\\S+)",
-      },
     },
   }
 end
