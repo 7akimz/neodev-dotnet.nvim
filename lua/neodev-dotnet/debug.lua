@@ -106,6 +106,7 @@ local function setup_configurations(dap)
       program = project.find_dll,
       cwd = get_cwd,
       stopAtEntry = false,
+      console = "internalConsole",
       env = launch_settings.get_launch_env,
     },
     {
@@ -121,6 +122,7 @@ local function setup_configurations(dap)
       program = project.find_dll,
       cwd = get_cwd,
       stopAtEntry = false,
+      console = "internalConsole",
       env = launch_settings.get_launch_env,
     },
   }
