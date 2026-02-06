@@ -36,7 +36,16 @@ function M.get_launch_env()
     return DEFAULT_ENV
   end
 
-  local _, profile = next(data.profiles)
+  local profile
+  for _, p in pairs(data.profiles) do
+    if p.commandName == "Project" then
+      profile = p
+      break
+    end
+  end
+  if not profile then
+    _, profile = next(data.profiles)
+  end
   if not profile or not profile.environmentVariables then
     return DEFAULT_ENV
   end
