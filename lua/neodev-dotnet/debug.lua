@@ -107,12 +107,14 @@ local function setup_configurations(dap)
       cwd = get_cwd,
       stopAtEntry = false,
       console = "integratedTerminal",
+      justMyCode = false,
       env = launch_settings.get_launch_env,
     },
     {
       type = "coreclr",
       name = "Attach to Process",
       request = "attach",
+      justMyCode = false,
       processId = function() return require("dap.utils").pick_process() end,
     },
     {
@@ -123,6 +125,7 @@ local function setup_configurations(dap)
       cwd = get_cwd,
       stopAtEntry = false,
       console = "integratedTerminal",
+      justMyCode = false,
       env = launch_settings.get_launch_env,
     },
   }
