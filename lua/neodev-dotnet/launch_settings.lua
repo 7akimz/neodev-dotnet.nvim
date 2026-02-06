@@ -62,6 +62,10 @@ function M.get_launch_env()
     end
   end
 
+  if profile.applicationUrl then
+    env.ASPNETCORE_URLS = profile.applicationUrl
+  end
+
   return env
 end
 
