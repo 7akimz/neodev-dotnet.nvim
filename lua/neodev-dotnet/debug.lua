@@ -151,6 +151,8 @@ function M.setup()
     }
   end
 
+  dap.defaults.coreclr.exception_breakpoints = { "user-unhandled" }
+
   if cfg.configurations then
     dap.configurations.cs = cfg.configurations
   else
