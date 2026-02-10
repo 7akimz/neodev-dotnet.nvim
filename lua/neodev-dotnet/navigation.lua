@@ -113,8 +113,8 @@ end
 
 local function find_mediatr_handler(name, exclude_args, root)
   local patterns = {
-    "class\\s+\\w+[^{]*:\\s*[^{]*IRequestHandler\\s*<\\s*" .. name .. "\\b",
-    "class\\s+\\w+[^{]*:\\s*[^{]*INotificationHandler\\s*<\\s*" .. name .. "\\b",
+    "IRequestHandler\\s*<\\s*" .. name .. "\\b",
+    "INotificationHandler\\s*<\\s*" .. name .. "\\b",
     "class\\s+" .. name .. "Handler\\b",
   }
 
