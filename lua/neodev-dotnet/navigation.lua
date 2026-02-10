@@ -43,7 +43,7 @@ local function looks_like_interface(name)
   return name:match("^I%u") ~= nil
 end
 
-local function grep_implementations(name)
+local function find_rg_items(name)
   local cfg = config.get().navigation
   local root = project.find_project_root()
 
@@ -58,7 +58,9 @@ local function grep_implementations(name)
     table.insert(patterns, "class\\s+\\w+[^{]*:\\s*[^{]*\\b" .. name .. "\\b")
   end
   table.insert(patterns, "(override|virtual|abstract)[^;{]*\\b" .. name .. "\\b")
+  table.insert(patterns, "class\\s+\\w+[^{]*<[^>]*\\b" .. name .. "\\b")
 
+  local seen = {}
   local all_items = {}
 
   for _, pattern in ipairs(patterns) do
@@ -74,24 +76,36 @@ local function grep_implementations(name)
       for _, line in ipairs(result) do
         local entry = parse_rg_line(line)
         if entry then
-          table.insert(all_items, entry)
+          local key = entry.filename .. ":" .. entry.lnum
+          if not seen[key] then
+            seen[key] = true
+            table.insert(all_items, entry)
+          end
         end
       end
     end
   end
 
-  if #all_items == 0 then
+  return all_items
+end
+
+local function show_results(items, name)
+  if #items == 0 then
     vim.notify("No implementations found for " .. name, vim.log.levels.INFO)
     return
   end
 
-  if #all_items == 1 then
-    vim.cmd("edit " .. vim.fn.fnameescape(all_items[1].filename))
-    vim.api.nvim_win_set_cursor(0, { all_items[1].lnum, all_items[1].col - 1 })
+  if #items == 1 then
+    vim.cmd("edit " .. vim.fn.fnameescape(items[1].filename))
+    vim.api.nvim_win_set_cursor(0, { items[1].lnum, items[1].col - 1 })
     return
   end
 
-  show_in_telescope(all_items, "Implementations of " .. name)
+  show_in_telescope(items, "Implementations of " .. name)
+end
+
+local function grep_implementations(name)
+  show_results(find_rg_items(name), name)
 end
 
 local function on_lsp_results(results)
@@ -122,23 +136,29 @@ function M.goto_implementation()
   vim.lsp.buf_request_all(bufnr, "textDocument/implementation", params, function(results)
     local lsp_results = on_lsp_results(results)
 
-    if #lsp_results > 0 then
-      if #lsp_results == 1 then
-        local loc = lsp_results[1]
-        local uri = loc.uri or loc.targetUri
-        local range = loc.range or loc.targetSelectionRange
-        vim.schedule(function()
+    if #lsp_results == 1 and not looks_like_interface(word) then
+      vim.schedule(function()
+        local rg_items = find_rg_items(word)
+        if #rg_items > 0 then
+          show_results(rg_items, word)
+        else
+          local loc = lsp_results[1]
+          local uri = loc.uri or loc.targetUri
+          local range = loc.range or loc.targetSelectionRange
           vim.lsp.util.show_document({ uri = uri, range = range }, "utf-8", { focus = true })
-        end)
-      else
-        vim.schedule(function()
-          vim.fn.setqflist({}, " ", {
-            title = "Implementations",
-            items = vim.lsp.util.locations_to_items(lsp_results, "utf-8"),
-          })
-          vim.cmd("copen")
-        end)
-      end
+        end
+      end)
+      return
+    end
+
+    if #lsp_results > 1 then
+      vim.schedule(function()
+        vim.fn.setqflist({}, " ", {
+          title = "Implementations",
+          items = vim.lsp.util.locations_to_items(lsp_results, "utf-8"),
+        })
+        vim.cmd("copen")
+      end)
       return
     end
 
