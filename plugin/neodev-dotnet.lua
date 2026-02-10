@@ -68,3 +68,25 @@ vim.api.nvim_create_autocmd("User", {
     end
   end,
 })
+
+vim.api.nvim_create_autocmd("LspAttach", {
+  group = augroup,
+  callback = function(event)
+    local client = vim.lsp.get_client_by_id(event.data.client_id)
+    if not client or client.name ~= "roslyn" then
+      return
+    end
+
+    if vim.bo[event.buf].filetype ~= "cs" then
+      return
+    end
+
+    local config = require("neodev-dotnet.config").get()
+    if not config.navigation.implementation_fallback then
+      return
+    end
+
+    local navigation = require("neodev-dotnet.navigation")
+    navigation.attach(event.buf)
+  end,
+})
