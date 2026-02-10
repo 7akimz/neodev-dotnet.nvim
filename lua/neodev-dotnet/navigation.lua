@@ -247,7 +247,7 @@ function M.goto_implementation()
     end
 
     vim.schedule(function()
-      grep_implementations(word)
+      grep_implementations(word, { mediatr_handler = true })
     end)
   end)
 end
