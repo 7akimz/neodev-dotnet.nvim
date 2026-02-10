@@ -43,25 +43,9 @@ local function looks_like_interface(name)
   return name:match("^I%u") ~= nil
 end
 
-local function find_rg_items(name)
-  local cfg = config.get().navigation
-  local root = project.find_project_root()
-
-  local exclude_args = {}
-  for _, dir in ipairs(cfg.exclude_dirs) do
-    table.insert(exclude_args, "--glob")
-    table.insert(exclude_args, "!" .. dir .. "/")
-  end
-
-  local patterns = {}
-  if looks_like_interface(name) then
-    table.insert(patterns, "class\\s+\\w+[^{]*:\\s*[^{]*\\b" .. name .. "\\b")
-  end
-  table.insert(patterns, "(override|virtual|abstract)[^;{]*\\b" .. name .. "\\b")
-  table.insert(patterns, "class\\s+\\w+[^{]*<[^>]*\\b" .. name .. "\\b")
-
+local function rg_search(patterns, exclude_args, root)
   local seen = {}
-  local all_items = {}
+  local items = {}
 
   for _, pattern in ipairs(patterns) do
     local cmd = vim.list_extend(
@@ -79,14 +63,51 @@ local function find_rg_items(name)
           local key = entry.filename .. ":" .. entry.lnum
           if not seen[key] then
             seen[key] = true
-            table.insert(all_items, entry)
+            table.insert(items, entry)
           end
         end
       end
     end
   end
 
-  return all_items
+  return items
+end
+
+local function find_rg_items(name)
+  local cfg = config.get().navigation
+  local root = project.find_project_root()
+
+  local exclude_args = {}
+  for _, dir in ipairs(cfg.exclude_dirs) do
+    table.insert(exclude_args, "--glob")
+    table.insert(exclude_args, "!" .. dir .. "/")
+  end
+
+  local pattern_groups = {}
+
+  if looks_like_interface(name) then
+    table.insert(pattern_groups, {
+      "class\\s+\\w+[^{]*:\\s*[^{]*\\b" .. name .. "\\b",
+    })
+  end
+
+  table.insert(pattern_groups, {
+    "Handle\\s*\\(\\s*" .. name .. "\\b",
+    "(override|virtual|abstract)[^;{]*\\b" .. name .. "\\b",
+  })
+
+  table.insert(pattern_groups, {
+    "(class|record|struct)\\s+\\w+[^{]*<[^>]*\\b" .. name .. "\\b",
+  })
+
+  for _, patterns in ipairs(pattern_groups) do
+    local items = rg_search(patterns, exclude_args, root)
+    if #items > 0 then
+      return items
+    end
+  end
+
+  return {}
 end
 
 local function show_results(items, name)
