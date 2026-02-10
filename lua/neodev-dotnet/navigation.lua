@@ -73,7 +73,56 @@ local function rg_search(patterns, exclude_args, root)
   return items
 end
 
-local function find_rg_items(name)
+local function is_mediatr_request_or_notification(bufnr, word)
+  local clients = vim.lsp.get_clients({ bufnr = bufnr, name = "roslyn" })
+  if #clients == 0 then
+    return false
+  end
+
+  local params = vim.lsp.util.make_position_params(0, clients[1].offset_encoding)
+
+  local result = vim.lsp.buf_request_sync(bufnr, "textDocument/definition", params, 3000)
+  if not result then
+    return false
+  end
+
+  for _, res in pairs(result) do
+    if res.result then
+      local locations = vim.islist(res.result) and res.result or { res.result }
+      for _, loc in ipairs(locations) do
+        local uri = loc.uri or loc.targetUri
+        if uri then
+          local def_bufnr = vim.uri_to_bufnr(uri)
+          vim.fn.bufload(def_bufnr)
+          local lines = vim.api.nvim_buf_get_lines(def_bufnr, 0, -1, false)
+          local content = table.concat(lines, "\n")
+
+          local has_class = content:match("class%s+" .. word) or content:match("record%s+" .. word)
+          if has_class then
+            if content:match("IRequest") or content:match("INotification") then
+              return true
+            end
+          end
+        end
+      end
+    end
+  end
+
+  return false
+end
+
+local function find_mediatr_handler(name, exclude_args, root)
+  local patterns = {
+    "class\\s+\\w+[^{]*:\\s*[^{]*IRequestHandler\\s*<\\s*" .. name .. "\\b",
+    "class\\s+\\w+[^{]*:\\s*[^{]*INotificationHandler\\s*<\\s*" .. name .. "\\b",
+    "class\\s+" .. name .. "Handler\\b",
+  }
+
+  return rg_search(patterns, exclude_args, root)
+end
+
+local function find_rg_items(name, opts)
+  opts = opts or {}
   local cfg = config.get().navigation
   local root = project.find_project_root()
 
@@ -81,6 +130,13 @@ local function find_rg_items(name)
   for _, dir in ipairs(cfg.exclude_dirs) do
     table.insert(exclude_args, "--glob")
     table.insert(exclude_args, "!" .. dir .. "/")
+  end
+
+  if opts.mediatr_handler then
+    local items = find_mediatr_handler(name, exclude_args, root)
+    if #items > 0 then
+      return items
+    end
   end
 
   local pattern_groups = {}
@@ -125,8 +181,8 @@ local function show_results(items, name)
   show_in_telescope(items, "Implementations of " .. name)
 end
 
-local function grep_implementations(name)
-  show_results(find_rg_items(name), name)
+local function grep_implementations(name, opts)
+  show_results(find_rg_items(name, opts), name)
 end
 
 local function on_lsp_results(results)
@@ -145,14 +201,21 @@ end
 
 function M.goto_implementation()
   local bufnr = vim.api.nvim_get_current_buf()
+  local word = vim.fn.expand("<cword>")
   local clients = vim.lsp.get_clients({ bufnr = bufnr, name = "roslyn" })
+
   if #clients == 0 then
-    grep_implementations(vim.fn.expand("<cword>"))
+    grep_implementations(word)
+    return
+  end
+
+  local is_mediatr = is_mediatr_request_or_notification(bufnr, word)
+  if is_mediatr then
+    grep_implementations(word, { mediatr_handler = true })
     return
   end
 
   local params = vim.lsp.util.make_position_params(0, clients[1].offset_encoding)
-  local word = vim.fn.expand("<cword>")
 
   vim.lsp.buf_request_all(bufnr, "textDocument/implementation", params, function(results)
     local lsp_results = on_lsp_results(results)

@@ -152,12 +152,13 @@ The plugin reads `Properties/launchSettings.json` from your project directory. I
 
 When `gi` is pressed on a Roslyn-attached buffer:
 
-1. Sends `textDocument/implementation` to the LSP
-2. If results exist, navigates normally (single jump or quickfix list)
-3. If empty, runs ripgrep across the solution:
+1. **MediatR support**: If the cursor is on an `IRequest` or `INotification` type (e.g. `VerifyContactCommand`), navigates directly to the handler class (`VerifyContactCommandHandler` or any class implementing `IRequestHandler<VerifyContactCommand>`)
+2. Sends `textDocument/implementation` to the LSP
+3. If results exist, navigates normally (single jump or quickfix list)
+4. If empty, runs ripgrep across the solution:
    - For interface names (e.g. `IUserService`): searches for classes inheriting the interface
    - For method names: searches for `override`, `virtual`, and `abstract` declarations
-4. Results shown in Telescope (or quickfix if Telescope absent)
+5. Results shown in Telescope (or quickfix if Telescope absent)
 
 Activates on the `User RoslynInitialized` event, so the LSP is fully ready before handling requests.
 
