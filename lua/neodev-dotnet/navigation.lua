@@ -43,6 +43,21 @@ local function looks_like_interface(name)
   return name:match("^I%u") ~= nil
 end
 
+local function find_solution_root()
+  local current_file = vim.api.nvim_buf_get_name(0)
+  local current_dir = current_file ~= "" and vim.fn.fnamemodify(current_file, ":h") or vim.fn.getcwd()
+
+  local sln = vim.fs.find(function(name)
+    return name:match("%.sln$")
+  end, { path = current_dir, upward = true, type = "file" })[1]
+
+  if sln then
+    return vim.fn.fnamemodify(sln, ":h")
+  end
+
+  return project.find_project_root()
+end
+
 local function rg_search(patterns, exclude_args, root)
   local seen = {}
   local items = {}
@@ -124,7 +139,7 @@ end
 local function find_rg_items(name, opts)
   opts = opts or {}
   local cfg = config.get().navigation
-  local root = project.find_project_root()
+  local root = find_solution_root()
 
   local exclude_args = {}
   for _, dir in ipairs(cfg.exclude_dirs) do
